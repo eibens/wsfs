@@ -3,12 +3,10 @@
 > [wsfs] starts a WebSocket server (ws) that broadcasts file system (fs) events
 > to its clients. It is implemented in TypeScript for [Deno].
 
-[![deno.land mod](https://img.shields.io/badge/deno.land-wsfs-lightgrey.svg?logo=deno)](https://deno.land/x/wsfs)
-[![deno.land doc](https://doc.deno.land/badge.svg)](https://doc.deno.land/https/deno.land/x/wsfs/mod.ts)
-![tag](https://img.shields.io/github/v/tag/eibens/wsfs)
-![MIT license](https://img.shields.io/github/license/eibens/wsfs)
-![CI](https://github.com/eibens/wsfs/workflows/ci/badge.svg)
-[![Code coverage](https://img.shields.io/codecov/c/github/eibens/wsfs)](https://codecov.io/gh/eibens/wsfs)
+[![License][license-shield]](LICENSE) [![Deno doc][deno-doc-shield]][deno-doc]
+[![Deno module][deno-land-shield]][deno-land]
+[![Github tag][github-shield]][github] [![Build][build-shield]][build]
+[![Code coverage][coverage-shield]][coverage]
 
 # Motivation
 
@@ -89,12 +87,22 @@ const server = Server(options);
 await server.close();
 ```
 
-# That's it!
-
-- Repository: [eibens/wsfs on GitHub].
-
 [wsfs]: #
 [eibens/wsfs on GitHub]: https://github.com/eibens/wsfs
 [cli.ts]: cli.ts
 [mod.ts]: mod.ts
 [deno]: https://deno.land
+
+<!-- badges -->
+
+[github]: https://github.com/eibens/wsfs
+[github-shield]: https://img.shields.io/github/v/tag/eibens/wsfs?label&logo=github
+[coverage-shield]: https://img.shields.io/codecov/c/github/eibens/wsfs?logo=codecov&label
+[license-shield]: https://img.shields.io/github/license/eibens/wsfs?color=informational
+[coverage]: https://codecov.io/gh/eibens/wsfs
+[build]: https://github.com/eibens/wsfs/actions/workflows/ci.yml
+[build-shield]: https://img.shields.io/github/workflow/status/eibens/wsfs/ci?logo=github&label
+[deno-doc]: https://doc.deno.land/https/deno.land/x/wsfs/mod.ts
+[deno-doc-shield]: https://img.shields.io/badge/doc-informational?logo=deno
+[deno-land]: https://deno.land/x/wsfs
+[deno-land-shield]: https://img.shields.io/badge/x/wsfs-informational?logo=deno&label
