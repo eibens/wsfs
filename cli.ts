@@ -1,83 +1,113 @@
-import { Event, Options, Server } from "./mod.ts";
-import { parse } from "https://deno.land/std@0.95.0/flags/mod.ts";
-import { readLines } from "https://deno.land/std@0.97.0/io/mod.ts";
-import { Node, stringify } from "https://deno.land/x/ansiml@v0.0.2/mod.ts";
-import {
-  EventItem,
-  HelpPage,
-  HintSection,
-  Layout,
-  StartFooter,
-  StartHeader,
-  Url,
-} from "./_ui.ts";
+import { Event, Options, Server as WsfsServer } from "./mod.ts";
+import * as ecli from "https://deno.land/x/ecli@v0.3.0/mod.ts";
+
+export const main = ecli.run({
+  start: (server) => {
+    return WsfsServer({
+      ...server.state.args as Partial<Options>,
+      handle: (event: Event) => {
+        server.update({
+          type: event.type,
+          ...formatEvent(event),
+        });
+      },
+    }).close;
+  },
+  help: {
+    header: {
+      name: "wsfs",
+      icon: ecli.Emoji("megaphone"),
+      description:
+        "Start a WebSocket server that broadcasts file system events to clients.",
+    },
+    usage: {
+      binary: "wsfs",
+      module: "https://deno.land/x/wsfs/cli.ts",
+      args: ecli.Optional("options"),
+      permissions: true,
+    },
+    permissions: {
+      items: [{
+        name: "net",
+        value: "<hostname>:<port>",
+        text: ecli.Sequence(
+          "Allow running the websocket server at ",
+          ecli.Url("ws://<hostname>:<port>"),
+          ".",
+        ),
+      }, {
+        name: "read",
+        value: "<path>",
+        text: ecli.Sequence(
+          "Allow watching the ",
+          ecli.Url("<path>"),
+          " for changes.",
+        ),
+      }],
+    },
+    options: {
+      items: [{
+        type: "flag",
+        name: "help",
+        alias: "h",
+        text: "Show this help text and do nothing else.",
+      }, {
+        type: "param",
+        name: "hostname",
+        text:
+          "The hostname for the web-socket server (defaults to `localhost`).",
+      }, {
+        type: "param",
+        name: "port",
+        text: "The port number for the web-socket server (defaults to `1234`).",
+      }, {
+        type: "param",
+        name: "path",
+        text:
+          "The path that should be observed by the file watcher (defaults to `.`).",
+      }],
+    },
+    links: {
+      items: [{
+        url: "https://github.com/eibens/wsfs",
+        text: "Source code on GitHub.",
+      }],
+    },
+  },
+});
+
 if (import.meta.main) {
   await main(Deno);
 }
 
-export async function main(opts: {
-  args: string[];
-  stdout: Deno.Writer;
-  stdin: Deno.Reader;
-}) {
-  const log = async (node: Node) => {
-    const text = stringify(node);
-    const buffer = new TextEncoder().encode(text);
-    await opts.stdout.write(buffer);
-  };
-
-  // Parse CLI arguments.
-  const args = parse(opts.args);
-
-  // Early exit with help text if 'help' option is specified.
-  if (args.help) {
-    await log(HelpPage());
-    return;
-  }
-
-  log(StartHeader());
-
-  // Start the server.
-  const server = Server({
-    ...args as Partial<Options>,
-
-    // Log events to the console.
-    handle: (event: Event) => {
-      switch (event.type) {
-        case "start": {
-          return log(EventItem(event.type, Url(event.url)));
-        }
-        case "error": {
-          log(EventItem(event.type, event.error.message));
-          return log(String(event.error));
-        }
-        case "stop": {
-          return log(EventItem(event.type));
-        }
-        case "connect":
-        case "disconnect": {
-          return log(EventItem(event.type, event.count + ` socket(s) open`));
-        }
-        case "fs": {
-          return log(
-            EventItem(
-              event.type,
-              `${event.kind} ${event.paths.length} path(s)`,
-            ),
-          );
-        }
-      }
-    },
-  });
-
-  // Wait for shutdown message.
-  for await (const line of readLines(opts.stdin)) {
-    if (line === "q") {
-      await server.close();
-      log(StartFooter());
-      break;
-    } else {
-      log(Layout("sections", [HintSection(), ""]));
+function formatEvent(event: Event): ecli.ServerEvent {
+  switch (event.type) {
+    case "start": {
+      return {
+        text: ecli.Url(event.url),
+      };
+    }
+    case "error": {
+      return {
+        text: ecli.Blocks(
+          event.error.message,
+          String(event.error),
+        ),
+      };
+    }
+    case "stop": {
+      return {};
+    }
+    case "connect":
+    case "disconnect": {
+      return {
+        text: event.count + ` socket(s) open`,
+      };
+    }
+    case "fs": {
+      return {
+        text: `${event.kind} ${event.paths.length} path(s)`,
+      };
     }
   }
 }
