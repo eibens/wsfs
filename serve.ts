@@ -71,7 +71,7 @@ export type Event =
 /**
  * Starts the file watcher and WebSocket server.
  *
- * @param opts are the server options.
+ * @param options are the server options.
  * @returns the corresponding server object.
  */
 export function serve(options: ServeOptions = {}): Server {
