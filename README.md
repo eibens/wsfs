@@ -30,13 +30,7 @@ be delivered quickly and frequently.
   has changed the contents of the folder. By running `wsfs` on the server users
   can be notified automatically.
 
-# Documentation
-
-[wsfs] comes with a command-line interface defined in [cli.ts] and the
-underlying TypeScript interface defined in [mod.ts]. The latter can be used for
-integrating [wsfs] into TypeScript applications.
-
-## [cli.ts]
+# [cli.ts]
 
 The CLI serves as (1) a convenient way of using [wsfs] in practice, and (2) as
 an application example for [mod.ts]. Usage and installation instructions can be
@@ -46,17 +40,17 @@ printed in a terminal with [deno]:
 deno run https://deno.land/x/wsfs/cli.ts --help
 ```
 
-## [mod.ts]
+# [serve.ts]
 
-The `Server` function returns a `Server` object. If successful, it starts two
+The `serve` function returns a `Server` object. If successful, it starts two
 processes: (1) the WebSocket server and (2) the file watcher. Both can be shut
 down with the `Server.close` function:
 
 ```ts
-import { Server } from "https://deno.land/x/wsfs/mod.ts";
+import { serve, Server } from "https://deno.land/x/wsfs/serve.ts";
 
 // Start server.
-const server: Server = Server();
+const server: Server = serve();
 
 // Print server URL.
 console.log(server.url);
@@ -65,11 +59,11 @@ console.log(server.url);
 await server.close();
 ```
 
-An `Options` object can be specified to configure the server. All entries are
-optional:
+A `ServeOptions` object can be specified to configure the server. All entries
+are optional:
 
 ```ts
-import { Event, Options } from "https://deno.land/x/wsfs/mod.ts";
+import { Event, Options } from "https://deno.land/x/wsfs/serve.ts";
 
 const options: Options = {
   // Default settings for starting the server at: ws://localhost:1234
@@ -87,10 +81,14 @@ const server = Server(options);
 await server.close();
 ```
 
+# That's it!
+
+[wsfs on GitHub][github]
+
 [wsfs]: #
 [eibens/wsfs on GitHub]: https://github.com/eibens/wsfs
 [cli.ts]: cli.ts
-[mod.ts]: mod.ts
+[serve.ts]: serve.ts
 [deno]: https://deno.land
 
 <!-- badges -->

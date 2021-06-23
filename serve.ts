@@ -10,7 +10,7 @@ import { serve as serveHttp } from "https://deno.land/std@0.95.0/http/mod.ts";
 /**
  * Defines the options for the server.
  */
-export type Options = {
+export type ServeOptions = Readonly<{
   /**
    * The port for accepting new connections.
    */
@@ -30,12 +30,12 @@ export type Options = {
    * A function that receives server lifecycle events.
    */
   handle?: (event: Event) => void;
-};
+}>;
 
 /**
  * Defines an object that can be used to interact with the server.
  */
-export type Server = {
+export type Server = Readonly<{
   /**
    * The WebSocket URL under which the server is listening for connections.
    */
@@ -44,24 +44,29 @@ export type Server = {
   /**
    * The complete server options.
    */
-  options: Required<Options>;
+  options: Readonly<Required<ServeOptions>>;
 
   /**
    * A function that closes the server and disposes all resources.
    */
   close: () => Promise<void>;
-};
+}>;
 
 /**
  * Defines lifecycle events emitted by the server.
  */
 export type Event =
-  | { type: "start"; url: string }
-  | { type: "connect"; count: number }
-  | { type: "disconnect"; count: number }
-  | { type: "stop" }
-  | ({ type: "fs" } & Deno.FsEvent)
-  | { type: "error"; error: Error };
+  & {
+    server: Server;
+  }
+  & (
+    | { type: "start" }
+    | { type: "stop" }
+    | { type: "connect"; socket: WebSocket }
+    | { type: "disconnect"; socket: WebSocket }
+    | ({ type: "fs" } & Deno.FsEvent)
+    | { type: "error"; error: Error }
+  );
 
 /**
  * Starts the file watcher and WebSocket server.
@@ -69,47 +74,9 @@ export type Event =
  * @param opts are the server options.
  * @returns the corresponding server object.
  */
-export function Server(opts: Options = {}): Server {
-  const options = Options(opts);
-  const dispatch = Dispatcher(options);
-
-  const server = listenWebSocket({
-    ...options,
-    dispatch,
-  });
-
-  const watcher = listenFiles({
-    ...options,
-    handle: (e) => {
-      dispatch("fs", e);
-      server.send(e);
-      return Promise.resolve();
-    },
-  });
-
-  const url = `ws://${options.hostname}:${options.port}`;
-  dispatch("start", { url });
-  return {
-    options,
-    url,
-    close: async () => {
-      await Promise.all([
-        watcher.close(),
-        server.close(),
-      ]);
-      dispatch("stop", {});
-    },
-  };
-}
-
-/**
- * Creates server options with default settings.
- *
- * @param opts is an options object.
- * @returns an options object where all fields are set.
- */
-function Options(opts: Options): Required<Options> {
-  return {
+export function serve(options: ServeOptions = {}): Server {
+  // Get default options.
+  const _options: Required<ServeOptions> = {
     hostname: "localhost",
     port: 1234,
     path: ".",
@@ -118,36 +85,35 @@ function Options(opts: Options): Required<Options> {
         throw event.error;
       }
     },
-    ...opts,
+    ...options,
   };
-}
 
-/**
- * Defines a simple API for dispatching a new server lifecycle event.
- *
- * @param type is the type of the event that should be dispatched.
- * @param data are the properties of the event, except for its type.
- */
-type Dispatcher = <E extends Event>(
-  type: E["type"],
-  data: Omit<E, "type">,
-) => void;
-
-/**
- * Creates a dispatcher.
- *
- * @param options are a subset of the server options.
- * @returns the dispatcher.
- */
-function Dispatcher(options: {
-  handle: (e: Event) => void;
-}): Dispatcher {
-  return (type, data) => {
-    options.handle({
-      type,
-      ...data,
-    } as Event);
+  // Create the server API.
+  const server: Server = {
+    options: _options,
+    url: `ws://${_options.hostname}:${_options.port}`,
+    close: async () => {
+      await Promise.all([
+        fs.close(),
+        ws.close(),
+      ]);
+      server.options.handle({ server, type: "stop" });
+    },
   };
+
+  // Start WebSocket server and link it to file watcher.
+  const ws = listenWebSocket(server);
+  const fs = listenFiles({
+    path: server.options.path,
+    handle: (e) => {
+      server.options.handle({ server, type: "fs", ...e });
+      ws.send(e);
+      return Promise.resolve();
+    },
+  });
+
+  server.options.handle({ server, type: "start" });
+  return server;
 }
 
 function listenFiles(options: {
@@ -164,25 +130,21 @@ function listenFiles(options: {
     }
   })();
 
-  const closer = safeguard(async () => {
-    // FIXME: I am not quite sure what `return` does. I am using it to cancel the async iterator and it seems to work, but maybe this is not correct.
-    if (files.return) await files.return();
+  const closer = safeguard(() => {
+    files.close();
+    return Promise.resolve();
   });
 
   return { close: closer.run };
 }
 
-function listenWebSocket(options: {
-  hostname?: string;
-  port: number;
-  dispatch: Dispatcher;
-}) {
-  const server = serveHttp(options);
+function listenWebSocket(server: Server) {
+  const listener = serveHttp(server.options);
   const sockets = new Set<WebSocket>();
 
   // Start accepting HTTP requests.
   (async () => {
-    for await (const request of server) {
+    for await (const request of listener) {
       (async () => {
         try {
           // Use this slightly inconvenient native API to upgrade the connection.
@@ -196,7 +158,7 @@ function listenWebSocket(options: {
 
           // Add new connection.
           sockets.add(ws);
-          options.dispatch("connect", { count: sockets.size });
+          server.options.handle({ server, type: "connect", socket: ws });
 
           // Wait for close event.
           // NOTE: For now we ignore all other events.
@@ -204,7 +166,11 @@ function listenWebSocket(options: {
             for await (const event of ws) {
               if (isWebSocketCloseEvent(event)) {
                 sockets.delete(ws);
-                options.dispatch("disconnect", { count: sockets.size });
+                server.options.handle({
+                  server,
+                  type: "disconnect",
+                  socket: ws,
+                });
                 break;
               }
             }
@@ -216,7 +182,7 @@ function listenWebSocket(options: {
             }
           }
         } catch (error) {
-          options.dispatch("error", { error });
+          server.options.handle({ server, type: "error", error });
         }
       })();
     }
@@ -227,7 +193,7 @@ function listenWebSocket(options: {
     await Promise.all(Array.from(sockets).map((ws) => ws.close()));
 
     // Stop listening for new connections.
-    server.close();
+    listener.close();
   });
 
   return {
