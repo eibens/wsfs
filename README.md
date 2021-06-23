@@ -63,21 +63,21 @@ A `ServeOptions` object can be specified to configure the server. All entries
 are optional:
 
 ```ts
-import { Event, Options } from "https://deno.land/x/wsfs/serve.ts";
+import { Event, serve, ServeOptions } from "./serve.ts";
 
-const options: Options = {
+const options: ServeOptions = {
   // Default settings for starting the server at: ws://localhost:1234
   hostname: "localhost",
   port: 1234,
 
   // Specify the path to observe.
-  path: "some/path",
+  path: ".",
 
   // Handle server events.
   handle: (e: Event) => console.log(e),
 };
 
-const server = Server(options);
+const server = serve(options);
 await server.close();
 ```
 
